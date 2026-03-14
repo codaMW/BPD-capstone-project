@@ -88,7 +88,7 @@ done
 
 ## Advanced Track Implemented
 
-**Track B — Mining Concentration**: Coinbase scriptSig is decoded from hex and
+**Track B  Mining Concentration**: Coinbase scriptSig is decoded from hex and
 scanned for known pool tag patterns (AntPool, F2Pool, ViaBTC, Foundry, etc.).
 Attribution is stored per block and surfaced in the Overview page as a
 colour-coded bar chart with percentage breakdown.
@@ -115,7 +115,7 @@ curl http://localhost:8080/api/mempool/latest | jq .
 - **User agent spoofing**: `subver` strings in peer info can be forged.
 - **Genesis block**: `getblockstats` cannot compute fee data for block 0
   (no UTXO set undo data). This is a known Bitcoin Core limitation.
-- **Pool attribution**: Based on coinbase tag heuristics only — pools can omit
+- **Pool attribution**: Based on coinbase tag heuristics only  pools can omit
   tags or use non-standard ones. Unknown blocks are labelled "Solo/Unknown".
 - **Hashrate estimate**: Derived from `getmininginfo` which uses a 30-block
   rolling window. Not suitable for short-window regtest chains.
