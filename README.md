@@ -1,6 +1,6 @@
 # Bitcoin Network & Chain Analytics Dashboard
 
-A production-grade Bitcoin statistics dashboard built in **Rust**, backed by a
+A Bitcoin statistics dashboard built in **Rust**, backed by a
 live Bitcoin Core node running in regtest mode.
 
 ## Architecture
@@ -112,10 +112,9 @@ curl http://localhost:8080/api/mempool/latest | jq .
   correct for an isolated regtest node). On testnet/mainnet this populates.
 - **Peer sampling**: Only this node's connected peers are visible (~8–125 on
   mainnet). Hidden nodes (Tor/I2P, firewalled) are not observable.
-- **User agent spoofing**: `subver` strings in peer info can be forged.
 - **Genesis block**: `getblockstats` cannot compute fee data for block 0
   (no UTXO set undo data). This is a known Bitcoin Core limitation.
-- **Pool attribution**: Based on coinbase tag heuristics only — pools can omit
+- **Pool attribution**: Based on coinbase tag, pools can omit
   tags or use non-standard ones. Unknown blocks are labelled "Solo/Unknown".
 - **Hashrate estimate**: Derived from `getmininginfo` which uses a 30-block
   rolling window. Not suitable for short-window regtest chains.
