@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bitcoin Node Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#242424;--orange:#f7931a;--orange2:#e8820a;--text:#e8e8e8;--muted:#888;--border:#2a2a2a;--green:#00c48c;--red:#ff4757;--blue:#4da6ff}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;min-height:100vh}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600;color:var(--orange)}
+.logo svg{width:28px;height:28px}
+.status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+nav{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:13px;font-weight:500;transition:.2s;user-select:none}
+.tab.active{color:var(--orange);border-bottom-color:var(--orange)}
+.tab:hover{color:var(--text)}
+.page{display:none;padding:24px;max-width:1400px;margin:0 auto}
+.page.active{display:block}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+@media(max-width:500px){.g4,.g3,.g2{grid-template-columns:1fr}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;font-weight:500}
+.stat{font-size:28px;font-weight:700;color:var(--text);line-height:1}
+.stat.orange{color:var(--orange)}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(0,196,140,.15);color:var(--green)}
+.badge-orange{background:rgba(247,147,26,.15);color:var(--orange)}
+.badge-blue{background:rgba(77,166,255,.15);color:var(--blue)}
+.chart-wrap{position:relative;width:100%;height:220px}
+.chart-wrap.tall{height:280px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.inbound{color:var(--blue)}.outbound{color:var(--orange)}
+.section-title{font-size:18px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title .sub{font-size:12px;color:var(--muted);font-weight:400}
+.disclaimer{background:rgba(247,147,26,.08);border:1px solid rgba(247,147,26,.2);border-radius:8px;padding:12px 16px;font-size:12px;color:var(--muted);margin-top:16px;line-height:1.6}
+.empty{color:var(--muted);text-align:center;padding:40px;font-size:13px}
+.refresh-time{font-size:11px;color:var(--muted);text-align:right;margin-top:8px}
+.pool-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;margin-top:8px}
+.pool-seg{height:100%}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#f7931a"/><text x="12" y="17" text-anchor="middle" font-size="13" font-weight="900" fill="white" font-family="Arial">₿</text></svg>
+    Bitcoin Node Dashboard
+  </div>
+  <div class="status"><div class="dot"></div><span id="node-ver">Connecting…</span></div>
+</header>
+<nav>
+  <div class="tab active" onclick="showPage('overview')">Overview</div>
+  <div class="tab" onclick="showPage('blocks')">Blocks</div>
+  <div class="tab" onclick="showPage('mempool')">Mempool</div>
+  <div class="tab" onclick="showPage('p2p')">P2P Network</div>
+</nav>
+
+<!-- OVERVIEW -->
+<div id="page-overview" class="page active">
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Block height</div><div class="stat orange" id="ov-height">—</div><div class="stat-sub" id="ov-chain">—</div></div>
+    <div class="card"><div class="card-title">Difficulty</div><div class="stat" id="ov-diff">—</div><div class="stat-sub">Network difficulty</div></div>
+    <div class="card"><div class="card-title">Hashrate estimate</div><div class="stat" id="ov-hash">—</div><div class="stat-sub">Network H/s (30-block avg)</div></div>
+    <div class="card"><div class="card-title">Connected peers</div><div class="stat" id="ov-peers">—</div><div class="stat-sub" id="ov-peer-sub">—</div></div>
+  </div>
+  <div class="grid g3" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Mempool transactions</div><div class="stat" id="ov-memtx">—</div><div class="stat-sub" id="ov-memvb">—</div></div>
+    <div class="card"><div class="card-title">Mempool size</div><div class="stat" id="ov-membytes">—</div><div class="stat-sub">Total vbytes</div></div>
+    <div class="card"><div class="card-title">Min fee rate</div><div class="stat" id="ov-minfee">—</div><div class="stat-sub">sat/vByte (mempool min)</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <div class="section-title">Latest block <span class="sub" id="ov-blockhash"></span></div>
+      <div id="ov-block-detail">—</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Mining concentration <span class="sub">(all stored blocks)</span></div>
+      <div id="pool-bars"></div>
+      <div id="pool-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="section-title">Recent blocks</div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Height</th><th>Time</th><th>Txs</th><th>Avg fee (sats)</th><th>Avg feerate (sat/vB)</th><th>Total fee (sats)</th><th>Pool</th></tr></thead>
+      <tbody id="recent-blocks"></tbody>
+    </table></div>
+  </div>
+  <div class="refresh-time" id="ov-refresh"></div>
+</div>
+
+<!-- BLOCKS -->
+<div id="page-blocks" class="page">
+  <div class="grid g2" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Avg feerate (sat/vB) — last 150 blocks</div><div class="chart-wrap tall"><canvas id="chart-feerate"></canvas></div></div>
+    <div class="card"><div class="card-title">Transaction count — last 150 blocks</div><div class="chart-wrap tall"><canvas id="chart-txcount"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="section-title">Block history</div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Height</th><th>Time (UTC)</th><th>Txs</th><th>Avg fee</th><th>Avg feerate</th><th>Min feerate</th><th>Max feerate</th><th>Total fee</th><th>Pool</th></tr></thead>
+      <tbody id="blocks-table"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- MEMPOOL -->
+<div id="page-mempool" class="page">
+  <div class="grid g3" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Current tx count</div><div class="stat orange" id="mp-txcount">—</div></div>
+    <div class="card"><div class="card-title">Current vbytes</div><div class="stat" id="mp-vbytes">—</div></div>
+    <div class="card"><div class="card-title">Total fees</div><div class="stat" id="mp-fees">—</div><div class="stat-sub">BTC</div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Tx count (24h)</div><div class="chart-wrap"><canvas id="chart-mp-tx"></canvas></div></div>
+    <div class="card"><div class="card-title">vBytes (24h)</div><div class="chart-wrap"><canvas id="chart-mp-vb"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Total fees (24h, BTC)</div>
+    <div class="chart-wrap"><canvas id="chart-mp-fee"></canvas></div>
+  </div>
+  <div class="disclaimer">
+    <strong>Measurement note:</strong> Mempool snapshots are taken every 10 seconds from this node's local mempool view.
+    Due to propagation delays and node connectivity, this is not a complete view of global mempool state.
+    Fee histogram requires enhanced mempool data not shown in this MVP.
+  </div>
+</div>
+
+<!-- P2P -->
+<div id="page-p2p" class="page">
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="card"><div class="card-title">Total connections</div><div class="stat orange" id="p2p-total">—</div></div>
+    <div class="card"><div class="card-title">Inbound</div><div class="stat" id="p2p-in">—</div></div>
+    <div class="card"><div class="card-title">Outbound</div><div class="stat" id="p2p-out">—</div></div>
+    <div class="card"><div class="card-title">Node version</div><div class="stat" style="font-size:16px" id="p2p-ver">—</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-title">Connected peers <span class="sub">(IP addresses obfuscated)</span></div>
+    <div id="peers-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Type</th><th>Client</th><th>Protocol</th><th>Bytes sent</th><th>Bytes recv</th><th>Δ sent</th><th>Δ recv</th><th>Ping (ms)</th></tr></thead>
+        <tbody id="peers-table"></tbody>
+      </table>
+      <div class="empty" id="peers-empty" style="display:none">No peers connected — regtest nodes do not connect by default</div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Bandwidth 24h (bytes)</div>
+    <div class="chart-wrap"><canvas id="chart-bw"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Client distribution (by /Satoshi:X.Y.Z/ subver)</div>
+    <div id="client-ratio"><div class="empty">No peer data yet</div></div>
+  </div>
+  <div class="disclaimer">
+    <strong>Measurement limits:</strong> Peer data reflects this node's connected peers only (~8–125 connections).
+    Many nodes are non-listening, behind Tor/I2P, or firewalled and are not visible here.
+    User agent strings (subver) can be spoofed. Client ratios are not representative of the full network.
+  </div>
+</div>
+
+<script>
+const ORANGE='#f7931a', BLUE='#4da6ff', GREEN='#00c48c', PURPLE='#a855f7';
+let feerateChart, txChart, mpTxChart, mpVbChart, mpFeeChart, bwChart;
+let currentPage='overview';
+
+function showPage(p){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('.tab')[['overview','blocks','mempool','p2p'].indexOf(p)].classList.add('active');
+  currentPage=p;
+  if(p==='blocks') refreshBlocks();
+  if(p==='mempool') refreshMempool();
+  if(p==='p2p') refreshP2P();
+}
+
+function fmt(n,d=0){return n==null?'—':Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fmtBtc(n){return n==null?'—':(n/1e8).toFixed(8)}
+function fmtBytes(b){
+  if(b==null)return'—';
+  if(b>1e9)return(b/1e9).toFixed(2)+' GB';
+  if(b>1e6)return(b/1e6).toFixed(2)+' MB';
+  if(b>1e3)return(b/1e3).toFixed(1)+' KB';
+  return b+' B';
+}
+function fmtHash(h){
+  if(h==null||h===0)return'0 H/s';
+  if(h>1e18)return(h/1e18).toFixed(2)+' EH/s';
+  if(h>1e15)return(h/1e15).toFixed(2)+' PH/s';
+  if(h>1e12)return(h/1e12).toFixed(2)+' TH/s';
+  if(h>1e9)return(h/1e9).toFixed(2)+' GH/s';
+  if(h>1e6)return(h/1e6).toFixed(2)+' MH/s';
+  return h.toFixed(0)+' H/s';
+}
+function fmtTime(ts){
+  return ts?new Date(ts*1000).toLocaleString():'—';
+}
+function fmtTimeShort(ts){
+  if(!ts)return'—';
+  const d=new Date(ts*1000);
+  return d.toLocaleTimeString();
+}
+
+function makeChart(id,type,labels,datasets,opts={}){
+  const ctx=document.getElementById(id);
+  if(!ctx)return null;
+  const def={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#666',maxRotation:0,maxTicksLimit:8},grid:{color:'#222'}},
+            y:{ticks:{color:'#666'},grid:{color:'#222'}}}};
+  const cfg=Object.assign({},def,opts);
+  return new Chart(ctx,{type,data:{labels,datasets},options:cfg});
+}
+
+// ── Overview ───────────────────────────────────────────────────────────────
+async function refreshOverview(){
+  try{
+    const d=await fetch('/api/overview').then(r=>r.json());
+    document.getElementById('node-ver').textContent=d.node_version||'Connected';
+    document.getElementById('ov-height').textContent=fmt(d.block_height);
+    document.getElementById('ov-chain').textContent=(d.chain||'').toUpperCase()+' network';
+    document.getElementById('ov-diff').textContent=d.difficulty<1?d.difficulty.toExponential(3):fmt(d.difficulty,0);
+    document.getElementById('ov-hash').textContent=fmtHash(d.hashrate_est);
+    document.getElementById('ov-peers').textContent=fmt(d.peer_count);
+    document.getElementById('ov-peer-sub').textContent=`In: ${d.connections_in||0}  Out: ${d.connections_out||0}`;
+    const m=d.mempool;
+    document.getElementById('ov-memtx').textContent=m?fmt(m.tx_count):'0';
+    document.getElementById('ov-memvb').textContent=m?fmtBytes(m.vbytes)+' total vbytes':'';
+    document.getElementById('ov-membytes').textContent=m?fmtBytes(m.vbytes):'0';
+    document.getElementById('ov-minfee').textContent=m?fmt(m.min_fee_rate*1e8,1):'0';
+
+    const lb=d.latest_block;
+    if(lb){
+      document.getElementById('ov-blockhash').textContent=lb.hash?lb.hash.slice(0,16)+'…':'';
+      document.getElementById('ov-block-detail').innerHTML=`
+        <table><tr><td style="color:var(--muted);width:140px">Height</td><td><strong>${fmt(lb.height)}</strong></td></tr>
+        <tr><td style="color:var(--muted)">Time</td><td>${fmtTime(lb.time)}</td></tr>
+        <tr><td style="color:var(--muted)">Transactions</td><td>${fmt(lb.tx_count)}</td></tr>
+        <tr><td style="color:var(--muted)">Avg feerate</td><td>${fmt(lb.avg_feerate)} sat/vB</td></tr>
+        <tr><td style="color:var(--muted)">Total fees</td><td>${fmtBtc(lb.total_fee)} BTC</td></tr>
+        <tr><td style="color:var(--muted)">Pool</td><td>${lb.pool_name||'Unknown'}</td></tr>
+        </table>`;
+    }
+
+    // Pool concentration
+    const pools=d.pool_concentration||[];
+    const total=pools.reduce((s,p)=>s+p.blocks,0)||1;
+    const poolColors=[ORANGE,BLUE,GREEN,PURPLE,'#ff4757','#00d2ff','#f9ca24','#6c5ce7'];
+    document.getElementById('pool-bars').innerHTML=`<div class="pool-bar">`+
+      pools.map((p,i)=>`<div class="pool-seg" style="width:${(p.blocks/total*100).toFixed(1)}%;background:${poolColors[i%poolColors.length]}" title="${p.pool}: ${p.blocks} blocks"></div>`).join('')+
+      `</div>`;
+    document.getElementById('pool-list').innerHTML=pools.map((p,i)=>
+      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:10px;height:10px;border-radius:2px;background:${poolColors[i%poolColors.length]}"></div>
+        <span>${p.pool}</span>
+        <span style="color:var(--muted);margin-left:auto">${p.blocks} blocks (${(p.blocks/total*100).toFixed(1)}%)</span>
+      </div>`).join('');
+
+    // Recent blocks table
+    const tbody=document.getElementById('recent-blocks');
+    tbody.innerHTML=(d.recent_blocks||[]).map(b=>`
+      <tr>
+        <td><strong style="color:var(--orange)">${fmt(b.height)}</strong></td>
+        <td style="color:var(--muted)">${fmtTime(b.time)}</td>
+        <td>${fmt(b.tx_count)}</td>
+        <td>${fmt(b.avg_fee)}</td>
+        <td>${fmt(b.avg_feerate)}</td>
+        <td>${fmt(b.total_fee)}</td>
+        <td><span class="badge badge-orange">${b.pool_name||'?'}</span></td>
+      </tr>`).join('');
+
+    document.getElementById('ov-refresh').textContent='Last updated: '+new Date().toLocaleTimeString();
+  }catch(e){console.error('overview',e)}
+}
+
+// ── Blocks ─────────────────────────────────────────────────────────────────
+async function refreshBlocks(){
+  try{
+    const d=await fetch('/api/blocks').then(r=>r.json());
+    const blocks=[...(d.blocks||[])].reverse();
+    const labels=blocks.map(b=>b.height);
+    const feerates=blocks.map(b=>b.avg_feerate);
+    const txcounts=blocks.map(b=>b.tx_count);
+
+    if(feerateChart){feerateChart.destroy();}
+    feerateChart=makeChart('chart-feerate','line',labels,[{
+      label:'Avg feerate (sat/vB)',data:feerates,borderColor:ORANGE,
+      backgroundColor:'rgba(247,147,26,.1)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]);
+
+    if(txChart){txChart.destroy();}
+    txChart=makeChart('chart-txcount','bar',labels,[{
+      label:'Tx count',data:txcounts,backgroundColor:'rgba(77,166,255,.6)',borderColor:BLUE,borderWidth:1}]);
+
+    const tbody=document.getElementById('blocks-table');
+    tbody.innerHTML=(d.blocks||[]).map(b=>`
+      <tr>
+        <td><strong style="color:var(--orange)">${fmt(b.height)}</strong></td>
+        <td style="color:var(--muted)">${fmtTime(b.time)}</td>
+        <td>${fmt(b.tx_count)}</td>
+        <td>${fmt(b.avg_fee)}</td>
+        <td>${fmt(b.avg_feerate)}</td>
+        <td>${fmt(b.min_feerate)}</td>
+        <td>${fmt(b.max_feerate)}</td>
+        <td>${fmt(b.total_fee)}</td>
+        <td><span class="badge badge-orange">${b.pool_name||'?'}</span></td>
+      </tr>`).join('');
+  }catch(e){console.error('blocks',e)}
+}
+
+// ── Mempool ────────────────────────────────────────────────────────────────
+async function refreshMempool(){
+  try{
+    const[latest,hist]=await Promise.all([
+      fetch('/api/mempool/latest').then(r=>r.json()),
+      fetch('/api/mempool').then(r=>r.json())
+    ]);
+    const m=latest.mempool;
+    document.getElementById('mp-txcount').textContent=m?fmt(m.tx_count):'0';
+    document.getElementById('mp-vbytes').textContent=m?fmtBytes(m.vbytes):'0';
+    document.getElementById('mp-fees').textContent=m?m.total_fee.toFixed(8):'0';
+
+    const snaps=hist.snapshots||[];
+    const labels=snaps.map(s=>fmtTimeShort(s.ts));
+    const txdata=snaps.map(s=>s.tx_count);
+    const vbdata=snaps.map(s=>s.vbytes);
+    const feedata=snaps.map(s=>s.total_fee);
+
+    if(mpTxChart){mpTxChart.destroy();}
+    mpTxChart=makeChart('chart-mp-tx','line',labels,[{
+      data:txdata,borderColor:ORANGE,backgroundColor:'rgba(247,147,26,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]);
+
+    if(mpVbChart){mpVbChart.destroy();}
+    mpVbChart=makeChart('chart-mp-vb','line',labels,[{
+      data:vbdata,borderColor:BLUE,backgroundColor:'rgba(77,166,255,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]);
+
+    if(mpFeeChart){mpFeeChart.destroy();}
+    mpFeeChart=makeChart('chart-mp-fee','line',labels,[{
+      data:feedata,borderColor:GREEN,backgroundColor:'rgba(0,196,140,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]);
+  }catch(e){console.error('mempool',e)}
+}
+
+// ── P2P ────────────────────────────────────────────────────────────────────
+async function refreshP2P(){
+  try{
+    const[ov,peers,bw,clients]=await Promise.all([
+      fetch('/api/overview').then(r=>r.json()),
+      fetch('/api/peers').then(r=>r.json()),
+      fetch('/api/peers/bandwidth').then(r=>r.json()),
+      fetch('/api/peers/clients').then(r=>r.json())
+    ]);
+    document.getElementById('p2p-total').textContent=fmt(ov.connections);
+    document.getElementById('p2p-in').textContent=fmt(ov.connections_in);
+    document.getElementById('p2p-out').textContent=fmt(ov.connections_out);
+    document.getElementById('p2p-ver').textContent=ov.node_version||'—';
+
+    const plist=peers.peers||[];
+    const tbody=document.getElementById('peers-table');
+    const empty=document.getElementById('peers-empty');
+    if(plist.length===0){
+      tbody.innerHTML='';
+      empty.style.display='block';
+    } else {
+      empty.style.display='none';
+      tbody.innerHTML=plist.map(p=>`
+        <tr>
+          <td>${p.peer_id}</td>
+          <td class="${p.inbound?'inbound':'outbound'}">${p.inbound?'inbound':'outbound'}</td>
+          <td style="font-family:monospace;font-size:12px">${p.subver||'?'}</td>
+          <td>${fmt(p.version)}</td>
+          <td>${fmtBytes(p.bytes_sent)}</td>
+          <td>${fmtBytes(p.bytes_recv)}</td>
+          <td style="color:var(--green)">${p.bytes_sent_delta!=null?'+'+fmtBytes(p.bytes_sent_delta):'—'}</td>
+          <td style="color:var(--green)">${p.bytes_recv_delta!=null?'+'+fmtBytes(p.bytes_recv_delta):'—'}</td>
+          <td>${p.ping!=null?p.ping.toFixed(1)+' ms':'—'}</td>
+        </tr>`).join('');
+    }
+
+    // Bandwidth chart
+    const bwdata=bw.history||[];
+    const bwlabels=bwdata.map(d=>fmtTimeShort(d.ts));
+    if(bwChart){bwChart.destroy();}
+    bwChart=makeChart('chart-bw','line',bwlabels,[
+      {label:'Sent',data:bwdata.map(d=>d.sent),borderColor:ORANGE,fill:false,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Recv',data:bwdata.map(d=>d.recv),borderColor:BLUE,fill:false,tension:.3,pointRadius:0,borderWidth:2}
+    ],{plugins:{legend:{display:true,labels:{color:'#888'}}}});
+
+    // Client ratio
+    const cl=clients.clients||[];
+    const crEl=document.getElementById('client-ratio');
+    if(cl.length===0){crEl.innerHTML='<div class="empty">No peer data yet</div>';}
+    else {
+      const total=cl.reduce((s,c)=>s+c.count,0)||1;
+      crEl.innerHTML=cl.map((c,i)=>
+        `<div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-family:monospace;font-size:12px">${c.subver||'unknown'}</span>
+            <span style="color:var(--muted)">${c.count} (${(c.count/total*100).toFixed(1)}%)</span>
+          </div>
+          <div style="height:6px;background:var(--border);border-radius:3px">
+            <div style="height:100%;width:${(c.count/total*100).toFixed(1)}%;background:var(--orange);border-radius:3px"></div>
+          </div>
+        </div>`).join('');
+    }
+  }catch(e){console.error('p2p',e)}
+}
+
+// ── Auto-refresh ───────────────────────────────────────────────────────────
+refreshOverview();
+setInterval(()=>{
+  refreshOverview();
+  if(currentPage==='blocks') refreshBlocks();
+  if(currentPage==='mempool') refreshMempool();
+  if(currentPage==='p2p') refreshP2P();
+},10000);
+</script>
+</body>
+</html>

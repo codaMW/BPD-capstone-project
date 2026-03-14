@@ -1,0 +1,1 @@
+/home/codamw/bitcoin-dashboard/target/release/bitcoin-dashboard: /home/codamw/bitcoin-dashboard/src/api.rs /home/codamw/bitcoin-dashboard/src/collectors.rs /home/codamw/bitcoin-dashboard/src/db.rs /home/codamw/bitcoin-dashboard/src/main.rs /home/codamw/bitcoin-dashboard/src/rpc.rs /home/codamw/bitcoin-dashboard/static/index.html
